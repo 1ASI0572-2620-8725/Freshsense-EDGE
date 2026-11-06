@@ -59,7 +59,11 @@ class BackendForwarder:
             "humidity": reading.humidity,
             "ethylenePpm": reading.ethylene_ppm,
             "time": reading.recorded_at.strftime(BACKEND_TIME_FORMAT),
+            "timestamp": reading.recorded_at.isoformat(),
+            "meta": reading.meta,
             # El semaforo ya viene clasificado del Edge; el backend solo lo persiste.
             "status": status.value,
+            "freshness": status.value,
+            "freshnessEmbedded": status.to_embedded_label(),
             "category": category,
         }

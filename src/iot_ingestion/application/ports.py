@@ -13,7 +13,11 @@ class ReadingStore(Protocol):
 
 class UpstreamForwarder(Protocol):
     def forward(
-        self, reading: SensorReading, category: str | None, status: FreshnessStatus
+        self,
+        reading: SensorReading,
+        category: str | None,
+        status: FreshnessStatus,
+        secret_key: str | None = None,
     ) -> bool:
         ...
 

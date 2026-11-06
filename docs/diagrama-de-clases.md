@@ -1,25 +1,17 @@
-# Diagrama de clases — Freshsense-EDGE
+# Diagrama de clases — Freshsense-EDGE (DDD)
 
-Aplicación edge del bounded context **iot_ingestion**, en capas DDD. Recibe la lectura del nodo embebido ([Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System)): temperatura, humedad y **etileno** (`ethylenePpm` del MQ135).
+Bounded context **iot_ingestion**. El Edge recibe las lecturas del prototipo físico
+[Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System)
+(`AM2302` + `MQ135` → `temperatureC`, `humidityPct`, `ethylenePpm`).
 
-Equivalencia con el embebido FS-FRUIT-1:
+## Capas
 
-| Edge | Embebido |
-|---|---|
-| GREEN | FRESH |
-| YELLOW | AT_RISK |
-| RED | SPOILED |
-
-## Capas DDD
-
-| Capa | Carpeta | Responsabilidad |
+| Capa | Carpeta | Piezas |
 |---|---|---|
-| Domain | `src/iot_ingestion/domain` | Entidades y reglas puras: `SensorReading`, `CategoryThreshold`, `classify` |
-| Application | `src/iot_ingestion/application` | Casos de uso y puertos: `ProcessReading`, `ClaimDevice`, `validation`, `ports` |
-| Infrastructure | `src/iot_ingestion/infrastructure` | Adaptadores: MySQL, memoria, HTTP al backend |
-| Interfaces | `src/iot_ingestion/interfaces` | API Flask: `POST /edge/process`, umbrales, devices, claim |
-
-El dominio no importa infraestructura ni Flask.
+| Domain | `domain/` | `SensorReading`, `CategoryThreshold`, `FreshnessStatus`, `classify` |
+| Application | `application/` | `ProcessReading`, `ClaimDevice`, `validation`, `ports` |
+| Infrastructure | `infrastructure/` | MySQL, memoria, `BackendForwarder`, claim HTTP |
+| Interfaces | `interfaces/` | Flask: `/edge/process` y `/api/v1/sensor-readings` |
 
 ## Dibujo
 
@@ -34,6 +26,7 @@ classDiagram
     +humidity float
     +ethylene_ppm float
     +recorded_at datetime
+    +meta str
   }
 
   class CategoryThreshold {
@@ -52,11 +45,12 @@ classDiagram
     YELLOW
     RED
     UNKNOWN
+    +to_embedded_label() str
   }
 
   class classify {
-    <<function>>
-    +classify(temp, humidity, ethylene, threshold) FreshnessStatus
+    <<domain service>>
+    +classify(temp, hum, ethylene, threshold) FreshnessStatus
   }
 
   class ProcessReading {
@@ -74,13 +68,13 @@ classDiagram
 
   class ThresholdCatalog {
     <<port>>
-    +category_for_device(id)
-    +threshold_for_category(cat)
+    +category_for_device()
+    +threshold_for_category()
   }
 
   class UpstreamForwarder {
     <<port>>
-    +forward(reading, category, status, secret)
+    +forward()
   }
 
   class InMemoryReadingRepository
@@ -89,6 +83,7 @@ classDiagram
   class BackendForwarder
   class FlaskRoutes {
     +POST /edge/process
+    +POST /api/v1/sensor-readings
     +GET /edge/thresholds
   }
 
@@ -107,13 +102,30 @@ classDiagram
   FlaskRoutes ..> ClaimDevice
 ```
 
-## Flujo
+## Flujo con el ESP32 real
 
-1. El ESP32 (Embebed) envía `deviceId`, temperatura, humedad, `ethylenePpm` y tiempo.
-2. `validation` acepta alias del embebido (`temperatureC`, `humidityPct`, `timestamp` ISO).
-3. `ProcessReading` guarda la lectura, busca la categoría (p. ej. Frutas) y llama a `classify` con **tres ejes**.
-4. Responde `202` con `freshness` y reenvía al backend (best-effort).
+```mermaid
+sequenceDiagram
+  participant ESP as Embebed ESP32
+  participant Edge as Freshsense-EDGE
+  participant Dom as domain.classify
+  participant BE as Backend
 
-## Frutas (FS-FRUIT-1)
+  ESP->>Edge: POST /api/v1/sensor-readings
+  Note over ESP,Edge: temperatureC humidityPct ethylenePpm timestamp
+  Edge->>Dom: classify 3 ejes
+  Dom-->>Edge: GREEN YELLOW o RED
+  Edge-->>ESP: 202 freshness + freshnessEmbedded
+  Edge->>BE: forward best-effort
+```
 
-Semilla por defecto: temp 0–8 °C, humedad 90–95 %, etileno 0–1 ppm. Dispositivo demo `esp32-freshsense-1` → Frutas.
+## Equivalencia con el embebido
+
+| Edge | Embebed FS-FRUIT-1 |
+|---|---|
+| GREEN | FRESH |
+| YELLOW | AT_RISK |
+| RED | SPOILED |
+
+Frutas (semilla): 0–8 °C, 90–95 %, 0–1 ppm.  
+Devices sembrados: `esp32-freshsense-1` y `00000000-0000-0000-0000-000000000001`.

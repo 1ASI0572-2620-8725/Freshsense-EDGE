@@ -16,7 +16,9 @@ DEFAULT_THRESHOLDS: tuple[CategoryThreshold, ...] = (
     CategoryThreshold("Snacks", 16, 24, 40, 55, 0, 20),
 )
 
-# Dispositivo demo -> Frutas, alineado al nodo de camara de frio del embebido.
+# Dispositivos demo -> Frutas (camara de frio del Embebed-System).
 DEFAULT_DEVICE_CATEGORIES: dict[str, str] = {
     "esp32-freshsense-1": "Frutas",
+    # DEVICE_ID por defecto del firmware Embebed-System.
+    "00000000-0000-0000-0000-000000000001": "Frutas",
 }

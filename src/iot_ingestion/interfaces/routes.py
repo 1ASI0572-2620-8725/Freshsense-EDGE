@@ -12,6 +12,8 @@ from src.iot_ingestion.infrastructure.upstream_forwarder import BackendForwarder
 from src.shared.errors import ValidationError
 
 PROCESS_ROUTE = "/edge/process"
+# Misma ruta que usa Embebed-System (FreshSenseNode.h -> READINGS_URL).
+EMBEDDED_READINGS_ROUTE = "/api/v1/sensor-readings"
 
 
 def build_ingestion_blueprint(
@@ -30,8 +32,7 @@ def build_ingestion_blueprint(
         catalog,
     )
 
-    @blueprint.post(PROCESS_ROUTE)
-    def process_reading() -> tuple[Response, int]:
+    def _process() -> tuple[Response, int]:
         validated = validate_reading_request(request.get_json(silent=True))
         result = use_case.execute(validated)
         body = {
@@ -39,16 +40,30 @@ def build_ingestion_blueprint(
             "forwarded": result.forwarded,
             "category": result.category,
             "freshness": result.status.value,
+            "freshnessEmbedded": result.status.to_embedded_label(),
             "reading": {
                 "deviceId": result.reading.device_id,
                 "id": result.reading.reading_id,
                 "temperature": result.reading.temperature,
+                "temperatureC": result.reading.temperature,
                 "humidity": result.reading.humidity,
+                "humidityPct": result.reading.humidity,
                 "ethylenePpm": result.reading.ethylene_ppm,
+                "meta": result.reading.meta,
                 "recordedAt": result.reading.recorded_at.isoformat(),
+                "timestamp": result.reading.recorded_at.isoformat(),
             },
         }
         return jsonify(body), 202
+
+    @blueprint.post(PROCESS_ROUTE)
+    def process_reading() -> tuple[Response, int]:
+        return _process()
+
+    @blueprint.post(EMBEDDED_READINGS_ROUTE)
+    def process_embedded_reading() -> tuple[Response, int]:
+        # Acepta el POST del ESP32 fisico (X-Device-Token opcional en esta capa).
+        return _process()
 
     @blueprint.get("/edge/thresholds")
     def list_thresholds() -> tuple[Response, int]:

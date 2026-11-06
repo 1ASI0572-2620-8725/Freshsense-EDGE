@@ -13,6 +13,7 @@ package "domain" {
     + humidity : float
     + ethylene_ppm : float
     + recorded_at : datetime
+    + meta : str
   }
 
   class CategoryThreshold {
@@ -30,9 +31,10 @@ package "domain" {
     YELLOW
     RED
     UNKNOWN
+    + to_embedded_label() : str
   }
 
-  class classify <<function>> {
+  class classify <<domain service>> {
     + classify(temp, humidity, ethylene, threshold) : FreshnessStatus
   }
 }
@@ -70,6 +72,7 @@ package "infrastructure" {
 package "interfaces" {
   class FlaskRoutes {
     + POST_/edge/process()
+    + POST_/api/v1/sensor-readings()
     + GET_/edge/thresholds()
     + GET_POST_/edge/devices()
     + POST_/edge/claim()
@@ -90,10 +93,16 @@ BackendForwarder ..|> UpstreamForwarder
 FlaskRoutes ..> ProcessReading
 FlaskRoutes ..> ClaimDevice
 
+note right of FlaskRoutes
+  /api/v1/sensor-readings
+  es la misma ruta que usa
+  Embebed-System (ESP32 real).
+end note
+
 note bottom of SensorReading
-  Alineado al Embebed-System:
-  temperature, humidity y ethylenePpm
-  del AM2302 + MQ135.
+  Campos del prototipo fisico:
+  temperatureC, humidityPct,
+  ethylenePpm, timestamp, meta.
 end note
 
 note bottom of CategoryThreshold

@@ -1,63 +1,48 @@
 # Historias de usuario — Freshsense-EDGE
 
-Bounded context: **iot_ingestion**. El Edge recibe lecturas del nodo físico documentado en [Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System) (AM2302 + MQ135, FS-FRUIT-1).
+Contexto: **iot_ingestion**. Fuente de verdad del hardware:
+[Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System).
 
-## US-EDGE-01 — Recibir lectura con etileno
+## US-EDGE-01 — Ingesta del prototipo físico
 
-**Como** dispositivo ESP32 FreshSense  
-**quiero** enviar temperatura, humedad y etileno al Edge  
-**para** que la cámara de frío quede registrada con las tres magnitudes del informe.
-
-**Criterios**
-- `POST /edge/process` acepta `temperature` / `temperatureC`, `humidity` / `humidityPct`, `ethylenePpm`.
-- Acepta `time` (dd/mm/yyyy HH:MM) o `timestamp` ISO del embebido.
-- Responde `202` con la lectura persistida en el cuerpo.
-
-## US-EDGE-02 — Clasificar frescura (tres ejes)
-
-**Como** operador de la cámara  
-**quiero** un semáforo GREEN / YELLOW / RED según umbrales de categoría  
-**para** saber si la fruta está FRESH, AT_RISK o SPOILED (equivalencia con el embebido).
+**Como** ESP32 FreshSense  
+**quiero** enviar `SensorReading` con temperatura, humedad y etileno  
+**para** que el Edge clasifique la cámara de frío.
 
 **Criterios**
-- Se usa la categoría del dispositivo (p. ej. Frutas).
-- Se evalúan temperatura, humedad y etileno; manda el peor eje.
-- Frutas sembrada: 0–8 °C, 90–95 %, 0–1 ppm (FS-FRUIT-1).
+- `POST /api/v1/sensor-readings` (ruta del firmware) y `POST /edge/process`.
+- Campos: `temperatureC`/`temperature`, `humidityPct`/`humidity`, `ethylenePpm`, `timestamp`/`time`, `meta`.
+- Respuesta `202` con `freshness` y `freshnessEmbedded` (FRESH / AT_RISK / SPOILED).
 
-## US-EDGE-03 — Reenviar al backend
+## US-EDGE-02 — Clasificar frescura FS-FRUIT-1
 
-**Como** sistema FreshSense  
-**quiero** que el Edge reenvíe la lectura clasificada al backend  
-**para** centralizar el monitoreo sin bloquear al dispositivo si el backend falla.
-
-**Criterios**
-- El payload incluye `ethylenePpm` y `status`.
-- Si el backend no responde, el Edge igual responde `202` con `forwarded: false`.
-
-## US-EDGE-04 — Vincular dispositivo (claim)
-
-**Como** usuario de la app  
-**quiero** canjear un código de vinculación en el Edge  
-**para** asociar el ESP32 a una categoría y guardar la clave local.
+**Como** operador  
+**quiero** semáforo GREEN / YELLOW / RED con tres ejes  
+**para** alinearme al LED/ventilador del embebido.
 
 **Criterios**
-- `POST /edge/claim` con `code`.
-- Página `GET /edge/setup` para el flujo manual.
+- Frutas: 0–8 °C, 90–95 %, 0–1 ppm.
+- Manda el peor eje.
+- Device UUID del firmware queda mapeado a Frutas.
 
-## US-EDGE-05 — Gestionar umbrales y categorías
+## US-EDGE-03 — Reenvío al backend
 
-**Como** administrador  
-**quiero** listar umbrales y asignar categoría a un `deviceId`  
-**para** clasificar lecturas de distintos tipos de alimento.
+**Como** plataforma FreshSense  
+**quiero** reenviar la lectura ya clasificada  
+**para** no perder datos si el backend falla momentáneamente.
 
 **Criterios**
-- `GET /edge/thresholds` incluye rangos de etileno.
-- `POST /edge/devices` exige una categoría que exista en el catálogo.
+- Payload con `ethylenePpm`, `status`, `freshnessEmbedded`.
+- Fallo upstream → `forwarded: false`, sin romper al ESP32.
 
-## Relación con el embebido
+## US-EDGE-04 — Claim / setup
 
-| Embebido | Edge |
-|---|---|
-| `SensorReading` con `ethylenePpm` | Mismo campo en dominio y API |
-| LED ← temp/hum; ventilador ← etileno | Clasificación agregada en tres ejes |
-| FRESH / AT_RISK / SPOILED | GREEN / YELLOW / RED |
+**Como** instalador  
+**quiero** vincular el Edge con un código  
+**para** asociar secretos y categoría.
+
+## US-EDGE-05 — Umbrales y devices
+
+**Como** admin  
+**quiero** listar umbrales (con etileno) y asignar categorías  
+**para** soportar más dispositivos.

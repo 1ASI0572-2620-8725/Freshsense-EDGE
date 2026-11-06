@@ -15,17 +15,28 @@ TIME_FORMAT = "%d/%m/%Y %H:%M"
 
 @dataclass(frozen=True)
 class ValidatedReading:
+    """DTO de entrada ya validado (capa application)."""
+
     device_id: str
     reading_id: str
     temperature: float
     humidity: float
     ethylene_ppm: float
     recorded_at: datetime
+    meta: str = ""
 
 
 def validate_reading_request(body: Any) -> ValidatedReading:
+    """Acepta el JSON del Edge legacy y el del Embebed-System.
+
+    Embebido: deviceId, timestamp, temperatureC, humidityPct, ethylenePpm, meta.
+    Legacy: deviceId, id, temperature, humidity, ethylenePpm, time.
+    """
     if not isinstance(body, dict):
         raise ValidationError("El cuerpo de la peticion debe ser un objeto JSON")
+    meta = body.get("meta", "")
+    if meta is not None and not isinstance(meta, str):
+        raise ValidationError("meta debe ser texto")
     return ValidatedReading(
         device_id=_require_str(body, "deviceId"),
         reading_id=_optional_reading_id(body),
@@ -39,6 +50,7 @@ def validate_reading_request(body: Any) -> ValidatedReading:
             body, "ethylenePpm", ETHYLENE_MIN, ETHYLENE_MAX, aliases=("ethylene_ppm",)
         ),
         recorded_at=_require_timestamp(body),
+        meta=(meta or "").strip(),
     )
 
 
@@ -46,6 +58,7 @@ def _optional_reading_id(body: dict[str, Any]) -> str:
     value = body.get("id")
     if isinstance(value, str) and value.strip():
         return value.strip()
+    # El embebido no siempre manda id: se genera uno estable por ciclo.
     return uuid.uuid4().hex[:20]
 
 
@@ -53,7 +66,7 @@ def _require_str(body: dict[str, Any], field: str) -> str:
     value = body.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ValidationError(f"{field} es obligatorio y debe ser un texto no vacio")
-    return value
+    return value.strip()
 
 
 def _require_number(
@@ -71,6 +84,12 @@ def _require_number(
                 value = body.get(alias)
                 used = alias
                 break
+    # ArduinoJson a veces serializa numeros como texto en meta; aceptamos str numerica.
+    if isinstance(value, str):
+        try:
+            value = float(value.strip())
+        except ValueError as exc:
+            raise ValidationError(f"{used} es obligatorio y debe ser un numero") from exc
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValidationError(f"{used} es obligatorio y debe ser un numero")
     if not low <= float(value) <= high:
@@ -79,11 +98,12 @@ def _require_number(
 
 
 def _require_timestamp(body: dict[str, Any]) -> datetime:
-    # Embebido: timestamp ISO. Edge legacy: time dd/mm/yyyy HH:MM.
-    if "time" in body and body.get("time") is not None:
+    if body.get("time") is not None:
         value = body.get("time")
         if not isinstance(value, str):
-            raise ValidationError(f"time es obligatorio y debe ser un texto con formato {TIME_FORMAT}")
+            raise ValidationError(
+                f"time es obligatorio y debe ser un texto con formato {TIME_FORMAT}"
+            )
         try:
             return datetime.strptime(value, TIME_FORMAT)
         except ValueError as exc:
@@ -96,6 +116,9 @@ def _require_timestamp(body: dict[str, Any]) -> datetime:
         )
     text = value.strip().replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(text)
+        parsed = datetime.fromisoformat(text)
     except ValueError as exc:
         raise ValidationError("timestamp debe ser una fecha ISO valida") from exc
+    if parsed.tzinfo is not None:
+        parsed = parsed.replace(tzinfo=None)
+    return parsed

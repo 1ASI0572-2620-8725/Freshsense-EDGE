@@ -5,24 +5,29 @@ from enum import Enum
 
 
 class FreshnessStatus(str, Enum):
-    """Estado de frescura tipo semaforo derivado de una lectura vs. su umbral.
+    """Semaforo del Edge.
 
     Equivalencia con el embebido FS-FRUIT-1:
-    GREEN ≈ FRESH, YELLOW ≈ AT_RISK, RED ≈ SPOILED.
+    GREEN -> FRESH, YELLOW -> AT_RISK, RED -> SPOILED.
     """
 
-    GREEN = "GREEN"      # dentro del rango optimo
-    YELLOW = "YELLOW"    # cerca del limite (margen de tolerancia)
-    RED = "RED"          # fuera de rango
-    UNKNOWN = "UNKNOWN"  # sin categoria o sin umbral para clasificar
+    GREEN = "GREEN"
+    YELLOW = "YELLOW"
+    RED = "RED"
+    UNKNOWN = "UNKNOWN"
+
+    def to_embedded_label(self) -> str:
+        return {
+            FreshnessStatus.GREEN: "FRESH",
+            FreshnessStatus.YELLOW: "AT_RISK",
+            FreshnessStatus.RED: "SPOILED",
+            FreshnessStatus.UNKNOWN: "UNKNOWN",
+        }[self]
 
 
 @dataclass(frozen=True)
 class CategoryThreshold:
-    """Rango optimo de conservacion de una categoria de alimento.
-
-    Incluye etileno (ppm) para alinear el Edge con el MQ135 del Embebed-System.
-    """
+    """Rango optimo por categoria (temp C, humedad %, etileno ppm)."""
 
     category: str
     temp_min: float
@@ -33,8 +38,6 @@ class CategoryThreshold:
     ethylene_max: float
 
 
-# Margen relativo (15% del ancho del rango) que define la zona "amarilla":
-# un valor justo fuera del rango pero dentro de este margen se considera YELLOW.
 NEAR_MARGIN_RATIO = 0.15
 
 
@@ -44,12 +47,12 @@ def classify(
     ethylene_ppm: float,
     threshold: CategoryThreshold,
 ) -> FreshnessStatus:
-    """Clasifica una lectura contra un umbral. Manda el peor de los tres ejes
-    (temperatura, humedad y etileno): si uno esta ROJO, el resultado es ROJO."""
-    temp_state = _axis_state(temperature, threshold.temp_min, threshold.temp_max)
-    humidity_state = _axis_state(humidity, threshold.humidity_min, threshold.humidity_max)
-    ethylene_state = _axis_state(ethylene_ppm, threshold.ethylene_min, threshold.ethylene_max)
-    return _worst(temp_state, humidity_state, ethylene_state)
+    """Clasifica con el peor de tres ejes: temperatura, humedad y etileno."""
+    return _worst(
+        _axis_state(temperature, threshold.temp_min, threshold.temp_max),
+        _axis_state(humidity, threshold.humidity_min, threshold.humidity_max),
+        _axis_state(ethylene_ppm, threshold.ethylene_min, threshold.ethylene_max),
+    )
 
 
 class _AxisState(Enum):

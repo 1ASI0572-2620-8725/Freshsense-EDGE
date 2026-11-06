@@ -1,115 +1,76 @@
 # Freshsense-EDGE
 
-Servicio edge IoT de FreshSense. Recibe lecturas del nodo embebido
+Edge IoT de FreshSense en **DDD**. Recibe las lecturas del prototipo físico
 ([Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System)):
-**temperatura**, **humedad** y **etileno** (`ethylenePpm` del MQ135), las clasifica
-en local (semáforo GREEN / YELLOW / RED) y las reenvía al backend.
+temperatura, humedad y **etileno**, las clasifica en local y puede reenviarlas al backend.
 
-Organización: [1ASI0572-2620-8725](https://github.com/1ASI0572-2620-8725)
-
-## Documentación DDD
+## Documentación
 
 | Archivo | Contenido |
 |---|---|
-| [docs/diagrama-de-clases.md](docs/diagrama-de-clases.md) | Capas DDD y Mermaid |
-| [docs/class-diagram.puml](docs/class-diagram.puml) | Mismo diagrama en PlantUML |
-| [docs/historias-de-usuario.md](docs/historias-de-usuario.md) | Historias del contexto `iot_ingestion` |
+| [docs/diagrama-de-clases.md](docs/diagrama-de-clases.md) | Capas DDD + Mermaid + secuencia ESP32 |
+| [docs/class-diagram.puml](docs/class-diagram.puml) | PlantUML |
+| [docs/historias-de-usuario.md](docs/historias-de-usuario.md) | Historias del contexto |
 
-## Arquitectura
+## Cómo habla el ESP32 real
 
-Un contexto acotado (`iot_ingestion`) dividido en:
+El firmware hace `POST` a:
 
-- **domain** — `SensorReading` (incluye `ethylene_ppm`) y `freshness`
-  (`FreshnessStatus`, `CategoryThreshold` con rangos de etileno, `classify` a tres ejes).
-- **application** — `validation`, `process_reading`, `claim_device`, `ports`.
-- **infrastructure** — repositorio en memoria, MySQL local, forwarder HTTP, seed.
-- **interfaces** — Flask: `POST /edge/process`, umbrales, devices, claim, setup.
+`http://<IP-DE-TU-PC>:5000/api/v1/sensor-readings`
 
-El dominio no importa infraestructura ni interfaces.
+con el JSON de Embebed:
 
-### Semáforo y embebido
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "timestamp": "2026-10-28T23:40:00",
+  "temperatureC": 6.4,
+  "humidityPct": 92.0,
+  "ethylenePpm": 0.5,
+  "meta": "firmware=1.0;origen=sensores"
+}
+```
 
-| Edge | Embebido FS-FRUIT-1 |
+También existe `POST /edge/process` (mismo caso de uso).
+
+| Edge | Embebed |
 |---|---|
 | GREEN | FRESH |
 | YELLOW | AT_RISK |
 | RED | SPOILED |
 
-Semilla **Frutas** (alineada al embebido): 0–8 °C, 90–95 % humedad, 0–1 ppm etileno.
-Dispositivo demo: `esp32-freshsense-1` → Frutas.
+## Arquitectura DDD
 
-## Requisitos
+- **domain** — `SensorReading` (+ etileno + meta), `classify` a 3 ejes
+- **application** — `ProcessReading`, `ClaimDevice`, validación con alias del embebido
+- **infrastructure** — MySQL / memoria, forwarder HTTP
+- **interfaces** — Flask
 
-- Python 3.10+
-- MySQL 8.0 opcional (si no hay MySQL, catálogo en memoria).
-
-## Instalación
+## Instalación y arranque
 
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+flask --app src.app run --host 0.0.0.0 --port 5000
 ```
+
+`--host 0.0.0.0` permite que el ESP32 en la misma WiFi llegue a tu PC.
 
 ## Configuración
 
-| Variable | Propósito | Por defecto |
-|---|---|---|
-| `FRESHSENSE_BACKEND_URL` | URL del backend | `http://localhost:8080/api/edge/readings` |
-| `FRESHSENSE_FORWARD_TIMEOUT` | Timeout (s) | `5` |
-| `FRESHSENSE_FORWARD_AUTH` | `X-Device-Key` de respaldo | _(vacío)_ |
-| `FRESHSENSE_ENV` | `development` / `production` | `development` |
-| `FRESHSENSE_DB_HOST` | MySQL | `localhost` |
-| `FRESHSENSE_DB_PORT` | Puerto | `3306` |
-| `FRESHSENSE_DB_USER` | Usuario | `root` |
-| `FRESHSENSE_DB_PASSWORD` | Contraseña | `root` |
-| `FRESHSENSE_DB_NAME` | Base | `freshsense_edge` |
+| Variable | Por defecto |
+|---|---|
+| `FRESHSENSE_BACKEND_URL` | `http://localhost:8080/api/edge/readings` |
+| `FRESHSENSE_DB_HOST` | `localhost` (vacío = solo memoria) |
 
-## Ejecución
+## Prueba rápida (payload embebido)
 
 ```bash
-flask --app src.app run
-```
-
-## Endpoint principal
-
-`POST /edge/process` — acepta el JSON del embebido (alias incluidos):
-
-```bash
-curl -X POST http://localhost:5000/edge/process \
+curl -X POST http://localhost:5000/api/v1/sensor-readings \
   -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"esp32-freshsense-1\",\"temperatureC\":6.4,\"humidityPct\":92,\"ethylenePpm\":0.5,\"timestamp\":\"2026-10-28T23:40:00\",\"id\":\"lectura-1\"}"
-```
-
-También acepta `temperature` / `humidity` / `time` (`dd/mm/yyyy HH:MM`).
-
-Respuesta `202`:
-
-```json
-{
-  "status": "ok",
-  "forwarded": false,
-  "category": "Frutas",
-  "freshness": "GREEN",
-  "reading": {
-    "deviceId": "esp32-freshsense-1",
-    "id": "lectura-1",
-    "temperature": 6.4,
-    "humidity": 92.0,
-    "ethylenePpm": 0.5,
-    "recordedAt": "2026-10-28T23:40:00"
-  }
-}
-```
-
-### Umbrales y dispositivos
-
-```bash
-curl http://localhost:5000/edge/thresholds
-curl http://localhost:5000/edge/devices
-curl -X POST http://localhost:5000/edge/devices \
-  -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"esp32-cocina\",\"category\":\"Frutas\"}"
+  -H "X-Device-Token: replace-with-device-token" \
+  -d "{\"deviceId\":\"00000000-0000-0000-0000-000000000001\",\"timestamp\":\"2026-10-28T23:40:00\",\"temperatureC\":6.4,\"humidityPct\":92,\"ethylenePpm\":0.5,\"meta\":\"firmware=1.0\"}"
 ```
 
 ## Pruebas
@@ -117,3 +78,8 @@ curl -X POST http://localhost:5000/edge/devices \
 ```bash
 pytest
 ```
+
+## Embebido
+
+En `FreshSenseNode.h` del Embebed-System, `READINGS_URL` debe apuntar a este Edge
+(`http://IP:5000/api/v1/sensor-readings`) y el WiFi de la placa debe ser el de tu red.

@@ -85,14 +85,36 @@ def test_accepts_embedded_aliases(client):
         "humidityPct": 92,
         "ethylenePpm": 0.4,
         "timestamp": "2026-10-28T23:40:00",
+        "meta": "firmware=1.0;origen=sensores",
     }
     response = client.post("/edge/process", json=body)
     assert response.status_code == 202
     payload = response.get_json()
     assert payload["freshness"] == "GREEN"
+    assert payload["freshnessEmbedded"] == "FRESH"
     assert payload["reading"]["temperature"] == 6.4
     assert payload["reading"]["humidity"] == 92.0
     assert payload["reading"]["ethylenePpm"] == 0.4
+    assert payload["reading"]["meta"] == "firmware=1.0;origen=sensores"
+
+
+def test_accepts_physical_firmware_route_and_device_uuid(client):
+    # Misma ruta y deviceId que FreshSenseNode.h del Embebed-System.
+    body = {
+        "deviceId": "00000000-0000-0000-0000-000000000001",
+        "timestamp": "2026-10-28T23:40:00",
+        "temperatureC": 6.4,
+        "humidityPct": 92.0,
+        "ethylenePpm": 0.5,
+        "meta": "firmware=1.0",
+    }
+    response = client.post("/api/v1/sensor-readings", json=body)
+    assert response.status_code == 202
+    payload = response.get_json()
+    assert payload["category"] == "Frutas"
+    assert payload["freshness"] == "GREEN"
+    assert payload["freshnessEmbedded"] == "FRESH"
+    assert payload["reading"]["ethylenePpm"] == 0.5
 
 
 def test_unknown_when_device_has_no_category(client):

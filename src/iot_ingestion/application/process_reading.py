@@ -38,6 +38,7 @@ class ProcessReading:
             humidity=validated.humidity,
             ethylene_ppm=validated.ethylene_ppm,
             recorded_at=validated.recorded_at,
+            meta=validated.meta,
         )
         self._readings.add(reading)
 
