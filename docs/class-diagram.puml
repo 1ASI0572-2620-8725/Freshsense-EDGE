@@ -1,0 +1,103 @@
+@startuml FreshsenseEdge
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+title Freshsense-EDGE — iot_ingestion (DDD)
+
+package "domain" {
+  class SensorReading {
+    + device_id : str
+    + reading_id : str
+    + temperature : float
+    + humidity : float
+    + ethylene_ppm : float
+    + recorded_at : datetime
+  }
+
+  class CategoryThreshold {
+    + category : str
+    + temp_min : float
+    + temp_max : float
+    + humidity_min : float
+    + humidity_max : float
+    + ethylene_min : float
+    + ethylene_max : float
+  }
+
+  enum FreshnessStatus {
+    GREEN
+    YELLOW
+    RED
+    UNKNOWN
+  }
+
+  class classify <<function>> {
+    + classify(temp, humidity, ethylene, threshold) : FreshnessStatus
+  }
+}
+
+package "application" {
+  class ProcessReading {
+    + execute(validated) : ProcessResult
+  }
+
+  class ClaimDevice {
+    + execute(code) : ClaimResult
+  }
+
+  interface ReadingStore {
+    + add(reading)
+  }
+
+  interface ThresholdCatalog {
+    + category_for_device(id)
+    + threshold_for_category(cat)
+  }
+
+  interface UpstreamForwarder {
+    + forward(reading, category, status, secret)
+  }
+}
+
+package "infrastructure" {
+  class InMemoryReadingRepository
+  class MySqlThresholdCatalog
+  class InMemoryThresholdCatalog
+  class BackendForwarder
+}
+
+package "interfaces" {
+  class FlaskRoutes {
+    + POST_/edge/process()
+    + GET_/edge/thresholds()
+    + GET_POST_/edge/devices()
+    + POST_/edge/claim()
+  }
+}
+
+ProcessReading ..> SensorReading
+ProcessReading ..> classify
+ProcessReading ..> ReadingStore
+ProcessReading ..> ThresholdCatalog
+ProcessReading ..> UpstreamForwarder
+classify ..> CategoryThreshold
+classify ..> FreshnessStatus
+InMemoryReadingRepository ..|> ReadingStore
+MySqlThresholdCatalog ..|> ThresholdCatalog
+InMemoryThresholdCatalog ..|> ThresholdCatalog
+BackendForwarder ..|> UpstreamForwarder
+FlaskRoutes ..> ProcessReading
+FlaskRoutes ..> ClaimDevice
+
+note bottom of SensorReading
+  Alineado al Embebed-System:
+  temperature, humidity y ethylenePpm
+  del AM2302 + MQ135.
+end note
+
+note bottom of CategoryThreshold
+  Frutas FS-FRUIT-1:
+  0-8 C, 90-95 %, 0-1 ppm.
+end note
+@enduml
