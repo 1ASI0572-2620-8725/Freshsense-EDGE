@@ -46,7 +46,18 @@ También existe `POST /edge/process` (mismo caso de uso).
 - **infrastructure** — MySQL / memoria, forwarder HTTP
 - **interfaces** — Flask
 
-## Instalación y arranque
+## Abrir en PyCharm (recomendado)
+
+El repo **es** el proyecto de PyCharm (raíz = esta carpeta).
+
+1. Clona o descarga el repo y en **PyCharm Home → Open** elige la carpeta `Freshsense-EDGE`.
+2. Crea el intérprete: **Settings → Project → Python Interpreter → Add Interpreter → Virtualenv**  
+   (ubicación `.venv`, base Python 3.11+).
+3. Terminal de PyCharm: `pip install -r requirements.txt`
+4. Arriba a la derecha: configuración **Edge Flask** → Run  
+   (ya viene en `.idea/runConfigurations/`: `0.0.0.0:5000` para el ESP32).
+
+## Instalación y arranque (terminal)
 
 ```bash
 python -m venv .venv
