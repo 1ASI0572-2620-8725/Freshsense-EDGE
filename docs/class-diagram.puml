@@ -3,7 +3,7 @@ skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
 skinparam shadowing false
 
-title Freshsense-EDGE — iot_ingestion (DDD)
+title Freshsense-EDGE — iot_ingestion (DDD)\nUS06 / US07 / US08 / US31 / TS41
 
 package "domain" {
   class SensorReading {
@@ -94,19 +94,26 @@ FlaskRoutes ..> ProcessReading
 FlaskRoutes ..> ClaimDevice
 
 note right of FlaskRoutes
-  /api/v1/sensor-readings
-  es la misma ruta que usa
-  Embebed-System (ESP32 real).
+  TS41: /api/v1/sensor-readings
+  misma ruta que Embebed-System
+  (ESP32 fisico / FreshSenseNode.h).
 end note
 
 note bottom of SensorReading
-  Campos del prototipo fisico:
+  US06 — prototipo fisico:
   temperatureC, humidityPct,
   ethylenePpm, timestamp, meta.
 end note
 
 note bottom of CategoryThreshold
-  Frutas FS-FRUIT-1:
+  US07 / US31 — Frutas FS-FRUIT-1:
   0-8 C, 90-95 %, 0-1 ppm.
+end note
+
+note left of FreshnessStatus
+  US07 / US08
+  GREEN=FRESH
+  YELLOW=AT_RISK
+  RED=SPOILED
 end note
 @enduml

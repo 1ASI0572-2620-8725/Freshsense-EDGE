@@ -1,18 +1,22 @@
 # Freshsense-EDGE
 
-Edge IoT de FreshSense en **DDD**. Recibe las lecturas del prototipo físico
+Edge IoT de FreshSense en **DDD**. Recibe las lecturas del **prototipo físico**
 ([Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System)):
 temperatura, humedad y **etileno**, las clasifica en local y puede reenviarlas al backend.
+
+Requisitos alineados al informe
+([report](https://github.com/1ASI0572-2620-8725/report) §3.1):
+**US06**, **US07**, **US08**, **US31**, **TS41**.
 
 ## Documentación
 
 | Archivo | Contenido |
 |---|---|
+| [docs/historias-de-usuario.md](docs/historias-de-usuario.md) | US/TS del informe + trazabilidad al código |
 | [docs/diagrama-de-clases.md](docs/diagrama-de-clases.md) | Capas DDD + Mermaid + secuencia ESP32 |
 | [docs/class-diagram.puml](docs/class-diagram.puml) | PlantUML |
-| [docs/historias-de-usuario.md](docs/historias-de-usuario.md) | Historias del contexto |
 
-## Cómo habla el ESP32 real
+## Cómo habla el ESP32 real (US06 / TS41)
 
 El firmware hace `POST` a:
 
@@ -33,7 +37,7 @@ con el JSON de Embebed:
 
 También existe `POST /edge/process` (mismo caso de uso).
 
-| Edge | Embebed |
+| Edge (US07) | Embebed FS-FRUIT-1 |
 |---|---|
 | GREEN | FRESH |
 | YELLOW | AT_RISK |
@@ -41,10 +45,10 @@ También existe `POST /edge/process` (mismo caso de uso).
 
 ## Arquitectura DDD
 
-- **domain** — `SensorReading` (+ etileno + meta), `classify` a 3 ejes
-- **application** — `ProcessReading`, `ClaimDevice`, validación con alias del embebido
+- **domain** — `SensorReading` (+ etileno + meta), `classify` a 3 ejes (US07/US08)
+- **application** — `ProcessReading`, `ClaimDevice` (US31), validación aliases embebido (TS41)
 - **infrastructure** — MySQL / memoria, forwarder HTTP
-- **interfaces** — Flask
+- **interfaces** — Flask (`/api/v1/sensor-readings`, `/edge/*`)
 
 ## Abrir en PyCharm (recomendado)
 

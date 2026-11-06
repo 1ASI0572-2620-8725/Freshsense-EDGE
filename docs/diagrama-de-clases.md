@@ -1,17 +1,21 @@
 # Diagrama de clases — Freshsense-EDGE (DDD)
 
-Bounded context **iot_ingestion**. El Edge recibe las lecturas del prototipo físico
+Bounded context **iot_ingestion** (informe:
+[report](https://github.com/1ASI0572-2620-8725/report) — IoT Monitoring / EP02).
+
+El Edge recibe las lecturas del prototipo físico
 [Embebed-System](https://github.com/1ASI0572-2620-8725/Embebed-System)
-(`AM2302` + `MQ135` → `temperatureC`, `humidityPct`, `ethylenePpm`).
+(`AM2302` + `MQ135` → `temperatureC`, `humidityPct`, `ethylenePpm`)
+por el contrato **TS41**: `POST /api/v1/sensor-readings`.
 
 ## Capas
 
-| Capa | Carpeta | Piezas |
-|---|---|---|
-| Domain | `domain/` | `SensorReading`, `CategoryThreshold`, `FreshnessStatus`, `classify` |
-| Application | `application/` | `ProcessReading`, `ClaimDevice`, `validation`, `ports` |
-| Infrastructure | `infrastructure/` | MySQL, memoria, `BackendForwarder`, claim HTTP |
-| Interfaces | `interfaces/` | Flask: `/edge/process` y `/api/v1/sensor-readings` |
+| Capa | Carpeta | Piezas | Historias |
+|---|---|---|---|
+| Domain | `domain/` | `SensorReading`, `CategoryThreshold`, `FreshnessStatus`, `classify` | US06, US07, US08 |
+| Application | `application/` | `ProcessReading`, `ClaimDevice`, `validation`, `ports` | US06, US31, TS41 |
+| Infrastructure | `infrastructure/` | MySQL / memoria, `BackendForwarder`, claim HTTP | US08, US31 |
+| Interfaces | `interfaces/` | Flask: `/edge/*` y `/api/v1/sensor-readings` | TS41, US31 |
 
 ## Dibujo
 
@@ -85,6 +89,7 @@ classDiagram
     +POST /edge/process
     +POST /api/v1/sensor-readings
     +GET /edge/thresholds
+    +POST /edge/claim
   }
 
   ProcessReading ..> SensorReading
@@ -102,7 +107,9 @@ classDiagram
   FlaskRoutes ..> ClaimDevice
 ```
 
-## Flujo con el ESP32 real
+Versión PlantUML: [class-diagram.puml](class-diagram.puml).
+
+## Flujo con el ESP32 real (US06 + TS41 + US07)
 
 ```mermaid
 sequenceDiagram
@@ -113,19 +120,19 @@ sequenceDiagram
 
   ESP->>Edge: POST /api/v1/sensor-readings
   Note over ESP,Edge: temperatureC humidityPct ethylenePpm timestamp
-  Edge->>Dom: classify 3 ejes
+  Edge->>Dom: classify 3 ejes (US07/US08)
   Dom-->>Edge: GREEN YELLOW o RED
   Edge-->>ESP: 202 freshness + freshnessEmbedded
-  Edge->>BE: forward best-effort
+  Edge->>BE: forward best-effort (TS41 upstream)
 ```
 
 ## Equivalencia con el embebido
 
-| Edge | Embebed FS-FRUIT-1 |
-|---|---|
-| GREEN | FRESH |
-| YELLOW | AT_RISK |
-| RED | SPOILED |
+| Edge | Embebed FS-FRUIT-1 | Informe |
+|---|---|---|
+| GREEN | FRESH | óptimo |
+| YELLOW | AT_RISK | priorizar uso |
+| RED | SPOILED | crítico |
 
 Frutas (semilla): 0–8 °C, 90–95 %, 0–1 ppm.  
-Devices sembrados: `esp32-freshsense-1` y `00000000-0000-0000-0000-000000000001`.
+Devices: `esp32-freshsense-1` y `00000000-0000-0000-0000-000000000001`.
